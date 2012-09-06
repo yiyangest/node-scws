@@ -60,19 +60,14 @@ void get_segments(const std::string& source, scws_t scws, std::string& error_mes
     scws_res_t res, cur;
 
     scws_send_text(scws, source.c_str(), length);
-    cout<<"send text to scws:"<<source.c_str()<<endl;
     while(res=cur=scws_get_result(scws)){
         while(cur!=NULL){
             string str = source.substr(cur->off, cur->len);
-            cout<<"one segment: "<<str<<endl;
             scws_segment *segment = new scws_segment();
             segment->idf = cur->idf;
-            printf("idf: %f\n",segment->idf);
             strcpy(segment->attr, cur->attr);
-            printf("attr: %s\n", segment->attr);
             segment->segment = new char[cur->len+1];
             strcpy(segment->segment, str.c_str());
-            printf("segment: %s\n", segment->segment);
 
             results.push_back(segment);
 
@@ -81,8 +76,6 @@ void get_segments(const std::string& source, scws_t scws, std::string& error_mes
         scws_free_result(res);
 
     }
-
-    printf("segmention done: %ld segments", results.size());
 
 }
 
@@ -140,7 +133,6 @@ class Scws: ObjectWrap
 
         ~Scws()
         {
-            printf("dealloc scws\n");
             scws_free(c_scws_obj);
         }
 
@@ -182,7 +174,6 @@ class Scws: ObjectWrap
             baton->request.data = baton;
             baton->callback = Persistent<Function>::New(callback);
 
-            printf("begin queue work:\n");
             uv_queue_work(uv_default_loop(), &baton->request, AsyncSegment,AfterSegment);
             //scws->Ref();
 
@@ -202,7 +193,6 @@ class Scws: ObjectWrap
             get_segments(baton->source, baton->scws, error_message,results);
 
             if (error_message.empty()) {
-                printf("baton->results' value: \n");
                 baton->results = results;
             } else {
                 baton->error_message = error_message;
@@ -237,7 +227,6 @@ class Scws: ObjectWrap
                 list<scws_segment *>::iterator it;
                 for (it=results.begin();it!=results.end();it++){
                     Local<Object> element = Object::New();
-                    printf("build results' NO.%d:\n", index);
                     element->Set(String::New("word"), String::New((*it)->segment));
                     element->Set(String::New("weight"), Number::New((*it)->idf));
                     element->Set(String::New("attr"), String::New((*it)->attr));
@@ -304,7 +293,6 @@ class Scws: ObjectWrap
             get_topwords(baton->source, baton->limit, baton->scws, error_message,results);
 
             if (error_message.empty()) {
-                printf("baton->results' value: \n");
                 baton->results = results;
             } else {
                 baton->error_message = error_message;
@@ -336,7 +324,6 @@ class Scws: ObjectWrap
                 list<scws_top_t>::iterator it;
                 for (it=results.begin();it!=results.end();it++){
                     Local<Object> element = Object::New();
-                    printf("build results' NO.%d:\n", index);
                     element->Set(String::New("word"), String::New((*it)->word));
                     element->Set(String::New("weight"), Number::New((*it)->weight));
                     element->Set(String::New("times"), Number::New((*it)->times));
@@ -372,46 +359,3 @@ extern "C" {
     }
     NODE_MODULE(node_scws,init);
 }
-
-
-
-
-//Handle<Value> segment(const Arguments& args) {
-    //HandleScope scope;
-    //scws_top_t res, cur;
-    //Handle<Value> arg0 = args[0];
-    //String::Utf8Value txt(arg0);
-    //int limit = args[1]->NumberValue();
-
-    //int txtLen = strlen(*txt);
-    //scws_send_text(scws, *txt, txtLen);
-    //Local<Array> tops = Array::New();
-    //int index = 0;
-
-    //cur = res = scws_get_tops(scws, limit, NULL);
-    //while(cur != NULL){
-            //Local<Object> objWord = Object::New();
-            //objWord->Set(String::NewSymbol("word"), String::New(cur->word));
-            //objWord->Set(String::NewSymbol("weight"), Number::New(cur->weight));
-            //objWord->Set(String::NewSymbol("times"), Integer::New(cur->times));
-            //if(cur->attr[1] == '\0'){
-                        //objWord->Set(String::NewSymbol("attr"), String::New(cur->attr, 1));
-                    //}else{
-                                //objWord->Set(String::NewSymbol("attr"), String::New(cur->attr, 2));
-                            //}
-            //cur = cur->next;
-            //tops->Set(index, objWord);
-            //index += 1;
-        //}
-    //scws_free_tops(res);
-    //scws_free_tops(cur);
-    //return scope.Close(tops);
-//}
-
-//void Init(Handle<Object> target) {
-  //target->Set(String::NewSymbol("init"),
-                //FunctionTemplate::New(initScws)->GetFunction());
-  //target->Set(String::NewSymbol("segment"),
-                //FunctionTemplate::New(segment)->GetFunction());
-//}
-//NODE_MODULE(node_scws, Init)
