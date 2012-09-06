@@ -1,0 +1,4 @@
+build/
+node_module
+*.node
+*.lock-wscript
