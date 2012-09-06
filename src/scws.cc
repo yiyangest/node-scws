@@ -55,12 +55,11 @@ void get_segments(const std::string& source, scws_t scws, std::string& error_mes
         return;
     }
     int length = source.length();
-    int index = 0;
 
     scws_res_t res, cur;
 
     scws_send_text(scws, source.c_str(), length);
-    while(res=cur=scws_get_result(scws)){
+    while((res=cur=scws_get_result(scws))){
         while(cur!=NULL){
             string str = source.substr(cur->off, cur->len);
             scws_segment *segment = new scws_segment();
@@ -89,7 +88,6 @@ void get_topwords(const std::string& source, int limit, scws_t scws, std::string
         return;
     }
     int length = source.length();
-    int index = 0;
 
     scws_top_t cur;
 
