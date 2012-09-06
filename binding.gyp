@@ -3,7 +3,7 @@
         {
             "target_name":"node_scws",
 
-            "sources":["src/scws.cpp"],
+            "sources":["src/scws.cc"],
 
             "libraries" :["-lscws"]
         }
