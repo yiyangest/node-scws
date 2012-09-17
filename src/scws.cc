@@ -142,6 +142,17 @@ class Scws: ObjectWrap
                 return Undefined();
             }
 
+            Local<Object> defaultOpts = Object::New();
+            defaultOpts->Set(String::New("dict"), String::New("/usr/local/Cellar/scws/etc/dict.utf8.xdb"));
+            defaultOpts->Set(String::New("charset"), String::New("utf8"));
+            defaultOpts->Set(String::New("rule"), String::New("/usr/local/Cellar/scws/etc/rules.utf8.ini"));
+            defaultOpts->Set(String::New("ignore"), Number::New(1));
+            defaultOpts->Set(String::New("multi"), Number::New(SCWS_MULTI_NONE));
+            defaultOpts->Set(String::New("duality"), Number::New(0));
+            defaultOpts->Set(String::New("debug"), Number::New(0));
+            if (args.Length() == 1 && args[0]->IsObject()) {
+            }
+
             Handle<Value> arg0 = args[0];
             String::Utf8Value dict(arg0);
             scws_set_charset(scws->c_scws_obj, "utf8");
