@@ -171,17 +171,17 @@ class Scws: ObjectWrap
             String::Utf8Value rule(defaultOpts->Get(String::New("rule")));
             scws_set_rule(scws->c_scws_obj, *rule);
 
-            int multi = defaultOpts->Get("multi")->ToInt32()->Value();
-            scws_set_multi(scws->c_scws_obj, mutli);
+            int multi = defaultOpts->Get(String::New("multi"))->ToInt32()->Value();
+            scws_set_multi(scws->c_scws_obj, multi);
 
-            int duality = defaultOpts->Get("duality")->ToInt32()->Value();
+            int duality = defaultOpts->Get(String::New("duality"))->ToInt32()->Value();
             scws_set_duality(scws->c_scws_obj, duality);
 
-            int debug = defaultOpts->Get("debug")->ToInt32()->Value();
+            int debug = defaultOpts->Get(String::New("debug"))->ToInt32()->Value();
             scws_set_debug(scws->c_scws_obj, debug);
 
             // 忽略标点符号
-            int ignore = defaultOpts->Get("ignore")->ToInt32()->Value();
+            int ignore = defaultOpts->Get(String::New("ignore"))->ToInt32()->Value();
             scws_set_ignore(scws->c_scws_obj, ignore);
             return args.This();
         }
