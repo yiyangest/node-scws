@@ -151,15 +151,38 @@ class Scws: ObjectWrap
             defaultOpts->Set(String::New("duality"), Number::New(0));
             defaultOpts->Set(String::New("debug"), Number::New(0));
             if (args.Length() == 1 && args[0]->IsObject()) {
+                Local<Object> obj = args[0]->ToObject();
+                Local<Array> propertyNames = obj -> GetOwnPropertyNames();
+                int propertyLength = propertyNames->Length();
+                for ( int i = 0; i < propertyLength; i ++) {
+                    const Local<String>& propertyName = propertyNames->Get(i)->ToString();
+                    const Local<Value>& propertyValue = obj->Get(propertyName);
+                    defaultOpts->Set(propertyName, propertyValue);
+                }
             }
 
-            Handle<Value> arg0 = args[0];
-            String::Utf8Value dict(arg0);
-            scws_set_charset(scws->c_scws_obj, "utf8");
+
+            String::Utf8Value charset(defaultOpts->Get(String::New("charset")));
+            scws_set_charset(scws->c_scws_obj, *charset);
+
+            String::Utf8Value dict(defaultOpts->Get(String::New("dict")));
             scws_set_dict(scws->c_scws_obj, *dict, SCWS_XDICT_XDB);
 
+            String::Utf8Value rule(defaultOpts->Get(String::New("rule")));
+            scws_set_rule(scws->c_scws_obj, *rule);
+
+            int multi = defaultOpts->Get("multi")->ToInt32()->Value();
+            scws_set_multi(scws->c_scws_obj, mutli);
+
+            int duality = defaultOpts->Get("duality")->ToInt32()->Value();
+            scws_set_duality(scws->c_scws_obj, duality);
+
+            int debug = defaultOpts->Get("debug")->ToInt32()->Value();
+            scws_set_debug(scws->c_scws_obj, debug);
+
             // 忽略标点符号
-            scws_set_ignore(scws->c_scws_obj, 1);
+            int ignore = defaultOpts->Get("ignore")->ToInt32()->Value();
+            scws_set_ignore(scws->c_scws_obj, ignore);
             return args.This();
         }
 
