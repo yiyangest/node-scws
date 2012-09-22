@@ -38,6 +38,7 @@ struct baton_t {
     scws_t scws;
     std::string source;
     int limit;
+    std::string attr;
     list<T> results;
     std::string error_message;
     Persistent<Function> callback;
@@ -78,7 +79,7 @@ void get_segments(const std::string& source, scws_t scws, std::string& error_mes
 
 }
 
-void get_topwords(const std::string& source, int limit, scws_t scws, std::string& error_message, list<scws_top_t>& results){
+void get_topwords(const std::string& source, int limit, const std::string& attr, scws_t scws, std::string& error_message, list<scws_top_t>& results){
     if (scws == NULL) {
         error_message = "scws need initialize";
         return;
@@ -91,8 +92,10 @@ void get_topwords(const std::string& source, int limit, scws_t scws, std::string
 
     scws_top_t cur;
 
+    char* attrs = new char[attr.length()];
+    strcpy(attrs, attr.c_str());
     scws_send_text(scws, source.c_str(), length);
-    cur = scws_get_tops(scws, limit, NULL);
+    cur = scws_get_tops(scws, limit, attrs);
 
     while(cur != NULL){
         results.push_back(cur);
@@ -119,6 +122,7 @@ class Scws: ObjectWrap
 
             // bind methods
             NODE_SET_PROTOTYPE_METHOD(s_ct, "segment", segment);
+            NODE_SET_PROTOTYPE_METHOD(s_ct, "topwords", topwords);
 
 
             // expose class as Scws
@@ -285,8 +289,10 @@ class Scws: ObjectWrap
 
         // argument 0: source text
         // argument 1: limit
-        // argument 2: callback
+        // argument 2: attr
+        // argument 3: callback
         static Handle<Value> topwords(const Arguments& args){
+
             HandleScope scope;
             int length = args.Length();
             REQ_FUN_ARG(length - 1, callback);
@@ -294,11 +300,19 @@ class Scws: ObjectWrap
             String::Utf8Value txt(arg0);
 
             int limit = 0;
+            std::string attr;
 
-            if (length > 2) {
+            if (length == 3) {
                 if (args[1]->IsNumber()) {
                     limit = args[1]->NumberValue();
                 }
+            } else if (length == 4) {
+                if (args[1]->IsNumber()) {
+                    limit = args[1]->NumberValue();
+                }
+                Handle<Value> attrArg = args[2];
+                String::Utf8Value t_attr(attrArg);
+                attr = *t_attr;
             }
 
 
@@ -309,6 +323,7 @@ class Scws: ObjectWrap
             baton->source = *txt;
             baton->request.data = baton;
             baton->limit = limit;
+            baton->attr = attr;
             baton->callback = Persistent<Function>::New(callback);
 
             uv_queue_work(uv_default_loop(), &baton->request, AsyncTopwords, AfterTopwords);
@@ -322,7 +337,7 @@ class Scws: ObjectWrap
             list<scws_top_t> results;
             std::string error_message;
 
-            get_topwords(baton->source, baton->limit, baton->scws, error_message,results);
+            get_topwords(baton->source, baton->limit, baton->attr, baton->scws, error_message,results);
 
             if (error_message.empty()) {
                 baton->results = results;
@@ -359,7 +374,13 @@ class Scws: ObjectWrap
                     element->Set(String::New("word"), String::New((*it)->word));
                     element->Set(String::New("weight"), Number::New((*it)->weight));
                     element->Set(String::New("times"), Number::New((*it)->times));
-                    element->Set(String::New("attr"), String::New((*it)->attr));
+
+                    // char attr[2] sometimes isnt ended with '\0'
+                    // so we need new String with explicity length
+                    int attrLength = strlen((*it)->attr);
+                    attrLength = attrLength > 2 ? 2: attrLength;
+                    element->Set(String::New("attr"), String::New((*it)->attr,attrLength));
+
                     words->Set(index, element);
                     //delete [] (*it)->segment;
                     index += 1;
