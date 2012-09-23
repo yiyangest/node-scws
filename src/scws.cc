@@ -19,6 +19,11 @@ using namespace v8;
 
 
 struct scws_segment{
+
+    ~scws_segment(){
+        delete [] segment;
+        segment = NULL;
+    }
     char *segment;
     float idf;
     char attr[3];
@@ -27,18 +32,23 @@ struct scws_segment{
 template <typename T>
 struct baton_t {
 
+    baton_t(){
+        attr = NULL;
+    }
+
     ~baton_t(){
         if (scws != NULL) {
-            printf("free baton");
             scws_free(scws);
         }
+        delete [] attr;
+        attr = NULL;
     };
     uv_work_t request;
 
     scws_t scws;
     std::string source;
     int limit;
-    std::string attr;
+    char* attr;
     list<T> results;
     std::string error_message;
     Persistent<Function> callback;
@@ -79,7 +89,7 @@ void get_segments(const std::string& source, scws_t scws, std::string& error_mes
 
 }
 
-void get_topwords(const std::string& source, int limit, const std::string& attr, scws_t scws, std::string& error_message, list<scws_top_t>& results){
+void get_topwords(const std::string& source, int limit, const char* attr, scws_t scws, std::string& error_message, list<scws_top_t>& results){
     if (scws == NULL) {
         error_message = "scws need initialize";
         return;
@@ -92,8 +102,11 @@ void get_topwords(const std::string& source, int limit, const std::string& attr,
 
     scws_top_t cur;
 
-    char* attrs = new char[attr.length()];
-    strcpy(attrs, attr.c_str());
+    char* attrs = NULL;
+    if (attr != NULL) {
+        attrs = new char[strlen(attr)+1];
+        strcpy(attrs, attr);
+    }
     scws_send_text(scws, source.c_str(), length);
     cur = scws_get_tops(scws, limit, attrs);
 
@@ -104,6 +117,7 @@ void get_topwords(const std::string& source, int limit, const std::string& attr,
     }
 
     scws_free_tops(cur);
+    delete [] attrs;
 }
 
 
@@ -209,6 +223,7 @@ class Scws: ObjectWrap
             baton->source = *txt;
             baton->request.data = baton;
             baton->callback = Persistent<Function>::New(callback);
+            baton->attr = NULL;
 
             uv_queue_work(uv_default_loop(), &baton->request, AsyncSegment,AfterSegment);
             //scws->Ref();
@@ -267,9 +282,11 @@ class Scws: ObjectWrap
                     element->Set(String::New("weight"), Number::New((*it)->idf));
                     element->Set(String::New("attr"), String::New((*it)->attr));
                     words->Set(index, element);
-                    delete [] (*it)->segment;
+                    //delete [] ((*it)->attr);
+                    delete *it;
                     index += 1;
                 }
+                results.clear();
                 Local<Value> argv[] = {
                     Local<Value>::New(Null()),
                     words
@@ -300,7 +317,7 @@ class Scws: ObjectWrap
             String::Utf8Value txt(arg0);
 
             int limit = 0;
-            std::string attr;
+            char *attr = NULL;
 
             if (length == 3) {
                 if (args[1]->IsNumber()) {
@@ -310,9 +327,14 @@ class Scws: ObjectWrap
                 if (args[1]->IsNumber()) {
                     limit = args[1]->NumberValue();
                 }
-                Handle<Value> attrArg = args[2];
-                String::Utf8Value t_attr(attrArg);
-                attr = *t_attr;
+                if (args[2]->IsNull()) {
+                    attr = NULL;
+                } else {
+                    Handle<Value> attrArg = args[2];
+                    String::Utf8Value t_attr(attrArg);
+                    attr = new char[t_attr.length() + 1];
+                    strcpy(attr, *t_attr);
+                }
             }
 
 
