@@ -49,6 +49,7 @@ struct baton_t {
     std::string source;
     int limit;
     char* attr;
+    bool hasword;
     list<T> results;
     std::string error_message;
     Persistent<Function> callback;
@@ -151,6 +152,29 @@ void get_words(const std::string& source, const char* attr, scws_t scws, std::st
     delete [] attrs;
 }
 
+void has_word(const std::string& source, const char* attr, scws_t scws, std::string& error_message, int& result){
+    if (scws == NULL) {
+        error_message = "scws need initialize";
+        return;
+    }
+    if (source.empty()) {
+        error_message = "source is empty";
+        return;
+    }
+    int length = source.length();
+
+    char* attrs = NULL;
+    if (attr != NULL) {
+        attrs = new char[strlen(attr)+1];
+        strcpy(attrs, attr);
+    }
+    scws_send_text(scws, source.c_str(), length);
+    result = scws_has_word(scws, attrs);
+
+    delete [] attrs;
+}
+
+
 class Scws: ObjectWrap
 {
     private:
@@ -168,6 +192,7 @@ class Scws: ObjectWrap
             NODE_SET_PROTOTYPE_METHOD(s_ct, "segment", segment);
             NODE_SET_PROTOTYPE_METHOD(s_ct, "topwords", topwords);
             NODE_SET_PROTOTYPE_METHOD(s_ct, "getwords", getwords);
+            NODE_SET_PROTOTYPE_METHOD(s_ct, "hasword", hasword);
 
 
             // expose class as Scws
@@ -490,7 +515,7 @@ class Scws: ObjectWrap
             baton->attr = attr;
             baton->callback = Persistent<Function>::New(callback);
 
-            uv_queue_work(uv_default_loop(), &baton->request, AsyncTopwords, AfterTopwords);
+            uv_queue_work(uv_default_loop(), &baton->request, AsyncGetwords, AfterGetwords);
 
             return Undefined();
         }
@@ -552,6 +577,98 @@ class Scws: ObjectWrap
                 Local<Value> argv[] = {
                     Local<Value>::New(Null()),
                     words
+                };
+
+                TryCatch try_catch;
+                baton->callback->Call(Context::GetCurrent()->Global(), 2, argv);
+
+                if (try_catch.HasCaught()) {
+                    FatalException(try_catch);
+                }
+            }
+
+            baton->callback.Dispose();
+            delete baton;
+        }
+
+
+        // argument 0: source text
+        // argument 1: attr
+        // argument 2: callback
+        static Handle<Value> hasword(const Arguments& args){
+
+            HandleScope scope;
+            int length = args.Length();
+            REQ_FUN_ARG(length - 1, callback);
+            Handle<Value> arg0 = args[0];
+            String::Utf8Value txt(arg0);
+
+            char *attr = NULL;
+
+            if (length == 3) {
+                if (args[1]->IsNull()) {
+                    attr = NULL;
+                } else {
+                    Handle<Value> attrArg = args[1];
+                    String::Utf8Value t_attr(attrArg);
+                    attr = new char[t_attr.length() + 1];
+                    strcpy(attr, *t_attr);
+                }
+            }
+
+
+            Scws *scws = ObjectWrap::Unwrap<Scws>(args.This());
+
+            baton_t<scws_top_t> *baton = new baton_t<scws_top_t>();
+            baton->scws = scws_fork(scws->c_scws_obj);
+            baton->source = *txt;
+            baton->request.data = baton;
+            baton->attr = attr;
+            baton->callback = Persistent<Function>::New(callback);
+
+            uv_queue_work(uv_default_loop(), &baton->request, AsyncHasword, AfterHasword);
+
+            return Undefined();
+        }
+
+        static void AsyncHasword(uv_work_t *req){
+            baton_t<scws_top_t> *baton = static_cast<baton_t<scws_top_t> *>(req->data);
+
+            int has = 0;
+            std::string error_message;
+
+            has_word(baton->source, baton->attr, baton->scws, error_message, has);
+
+            if (error_message.empty()) {
+                baton->hasword = has;
+            } else {
+                baton->error_message = error_message;
+            }
+        }
+
+        static void AfterHasword(uv_work_t *req){
+            HandleScope scope;
+            baton_t<scws_top_t> *baton = static_cast<baton_t<scws_top_t> *>(req->data);
+
+
+            if (!baton->error_message.empty()) {
+                Local<Value> err = Exception::Error(
+                        String::New(baton->error_message.c_str()));
+                Local<Value> argv[] = {err};
+
+                TryCatch try_catch;
+                baton->callback->Call(Context::GetCurrent()->Global(), 1, argv);
+
+                if (try_catch.HasCaught()) {
+                    FatalException(try_catch);
+                }
+            } else {
+
+                Local<Boolean> hasword = Local<Boolean>::New(Boolean::New(baton->hasword));
+
+                Local<Value> argv[] = {
+                    Local<Value>::New(Null()),
+                    hasword
                 };
 
                 TryCatch try_catch;
