@@ -8,7 +8,7 @@ scws.segment(text, function(error, results){
     if (error) {
         console.log('error: ', error);
     } else {
-        console.log('results:');
+        console.log('segment results:');
         console.log(results);
     }
 });
@@ -17,7 +17,25 @@ scws.topwords(text, 10, null,function(error, results){
     if (error) {
         console.log('error: ', error);
     } else {
-        console.log('results: ');
+        console.log('topwords results: ');
+        console.log(results);
+    }
+});
+
+scws.getwords(text,null, function(error, results){
+    if (error) {
+        console.log('error: ', error);
+    } else {
+        console.log('getwords results: ');
+        console.log(results);
+    }
+});
+
+scws.hasword(text, "n", function(error, results){
+    if (error) {
+        console.log('error: ', error);
+    } else {
+        console.log('haswords results: ');
         console.log(results);
     }
 });
