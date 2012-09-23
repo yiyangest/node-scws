@@ -120,6 +120,36 @@ void get_topwords(const std::string& source, int limit, const char* attr, scws_t
     delete [] attrs;
 }
 
+void get_words(const std::string& source, const char* attr, scws_t scws, std::string& error_message, list<scws_top_t>& results){
+    if (scws == NULL) {
+        error_message = "scws need initialize";
+        return;
+    }
+    if (source.empty()) {
+        error_message = "source is empty";
+        return;
+    }
+    int length = source.length();
+
+    scws_top_t cur;
+
+    char* attrs = NULL;
+    if (attr != NULL) {
+        attrs = new char[strlen(attr)+1];
+        strcpy(attrs, attr);
+    }
+    scws_send_text(scws, source.c_str(), length);
+    cur = scws_get_words(scws, attrs);
+
+    while(cur != NULL){
+        results.push_back(cur);
+
+        cur = cur->next;
+    }
+
+    scws_free_tops(cur);
+    delete [] attrs;
+}
 
 class Scws: ObjectWrap
 {
@@ -137,6 +167,7 @@ class Scws: ObjectWrap
             // bind methods
             NODE_SET_PROTOTYPE_METHOD(s_ct, "segment", segment);
             NODE_SET_PROTOTYPE_METHOD(s_ct, "topwords", topwords);
+            NODE_SET_PROTOTYPE_METHOD(s_ct, "getwords", getwords);
 
 
             // expose class as Scws
@@ -424,6 +455,116 @@ class Scws: ObjectWrap
             delete baton;
         }
 
+
+        // argument 0: source text
+        // argument 1: attr
+        // argument 2: callback
+        static Handle<Value> getwords(const Arguments& args){
+
+            HandleScope scope;
+            int length = args.Length();
+            REQ_FUN_ARG(length - 1, callback);
+            Handle<Value> arg0 = args[0];
+            String::Utf8Value txt(arg0);
+
+            char *attr = NULL;
+
+            if (length == 3) {
+                if (args[1]->IsNull()) {
+                    attr = NULL;
+                } else {
+                    Handle<Value> attrArg = args[1];
+                    String::Utf8Value t_attr(attrArg);
+                    attr = new char[t_attr.length() + 1];
+                    strcpy(attr, *t_attr);
+                }
+            }
+
+
+            Scws *scws = ObjectWrap::Unwrap<Scws>(args.This());
+
+            baton_t<scws_top_t> *baton = new baton_t<scws_top_t>();
+            baton->scws = scws_fork(scws->c_scws_obj);
+            baton->source = *txt;
+            baton->request.data = baton;
+            baton->attr = attr;
+            baton->callback = Persistent<Function>::New(callback);
+
+            uv_queue_work(uv_default_loop(), &baton->request, AsyncTopwords, AfterTopwords);
+
+            return Undefined();
+        }
+
+        static void AsyncGetwords(uv_work_t *req){
+            baton_t<scws_top_t> *baton = static_cast<baton_t<scws_top_t> *>(req->data);
+
+            list<scws_top_t> results;
+            std::string error_message;
+
+            get_words(baton->source, baton->attr, baton->scws, error_message,results);
+
+            if (error_message.empty()) {
+                baton->results = results;
+            } else {
+                baton->error_message = error_message;
+            }
+        }
+
+        static void AfterGetwords(uv_work_t *req){
+            HandleScope scope;
+            baton_t<scws_top_t> *baton = static_cast<baton_t<scws_top_t> *>(req->data);
+
+
+            if (!baton->error_message.empty()) {
+                Local<Value> err = Exception::Error(
+                        String::New(baton->error_message.c_str()));
+                Local<Value> argv[] = {err};
+
+                TryCatch try_catch;
+                baton->callback->Call(Context::GetCurrent()->Global(), 1, argv);
+
+                if (try_catch.HasCaught()) {
+                    FatalException(try_catch);
+                }
+            } else {
+                Local<Array> words = Array::New();
+                int index = 0;
+                //list<scws_segment *> *result = static_cast<list<scws_segment *> *>(baton->results);
+                list<scws_top_t> results = baton->results;
+                //list<scws_segment *> results = *result;
+                list<scws_top_t>::iterator it;
+                for (it=results.begin();it!=results.end();it++){
+                    Local<Object> element = Object::New();
+                    element->Set(String::New("word"), String::New((*it)->word));
+                    element->Set(String::New("weight"), Number::New((*it)->weight));
+                    element->Set(String::New("times"), Number::New((*it)->times));
+
+                    // char attr[2] sometimes isnt ended with '\0'
+                    // so we need new String with explicity length
+                    int attrLength = strlen((*it)->attr);
+                    attrLength = attrLength > 2 ? 2: attrLength;
+                    element->Set(String::New("attr"), String::New((*it)->attr,attrLength));
+
+                    words->Set(index, element);
+                    //delete [] (*it)->segment;
+                    index += 1;
+                }
+                Local<Value> argv[] = {
+                    Local<Value>::New(Null()),
+                    words
+                };
+
+                TryCatch try_catch;
+                baton->callback->Call(Context::GetCurrent()->Global(), 2, argv);
+
+                if (try_catch.HasCaught()) {
+                    FatalException(try_catch);
+                }
+            }
+
+            baton->callback.Dispose();
+            delete baton;
+        }
 };
 
 Persistent<FunctionTemplate> Scws::s_ct;
