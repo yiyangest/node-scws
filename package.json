@@ -1,0 +1,25 @@
+{
+    "name" : "node-scws",
+
+    "version" : "v0.0.1",
+
+    "scripts" : {
+        "preinstall" : "node-gyp configure build",
+        "preuninstall" : "rm -rf build/*"
+    },
+
+    "main" : "./lib/index",
+
+    "description" : "A node wrapper for scws segment",
+
+    "author" : {
+        "name" : "yiyangest",
+        "email" : "y31210@gmail.com",
+        "url" : "http://github.com/yiyangest"
+    },
+
+    "repository" : {
+        "type" : "git",
+        "url" : "https://github.com/yiyangest/node-scws.git"
+    }
+}
